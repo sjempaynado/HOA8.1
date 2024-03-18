@@ -3,70 +3,31 @@
   hosts: remote_servers
   gather_facts: no
   tasks:
-    - name: Install tcpdump and Wireshark
+    - name: Install tcpflow
       become: yes
       package:
-        name:
-          - tcpdump
-          - wireshark
+        name: tcpflow
         state: present
-
-    - name: Ensure tcpdump, binutils, and grep are installed
-      ansible.builtin.package:
-        name: "{{ item }}"
-        state: present
-      loop:
-        - tcpdump
-        - binutils
-        - grep
-      become: yes
-
-    - name: Start and Manual PCAP capture
-      command: tcpdump -i enp0s8 -w tcpdump.pcap
-      async: 120
-      poll: 0
 
     - name: Collect PCAP file
       ansible.builtin.fetch:
-        src: "/home/sempaynado/tcpdump.pcap"
-        dest: "/home/sempaynado/collected_pcap.exe"
+        src: "/home/sempaynado/captured.pcap"
+        dest: "/home/sempaynado/HOA8.1/"
         flat: yes
-        become: yes
-        become_user: root
 
-- name: LOCALHOST
-  hosts: localhost
+    - name: Debug
+      ansible.builtin.debug:
+        msg: "Before executing the tcpflow"
+
+    - name: Start and Manual PCAP capture
+      command: sudo tcpflow -C -i enp0s8 -o /home/sempaynado/captured.pcap
+
+- hosts: localhost
   connection: local
   gather_facts: false
   tasks:
 
-    - name: Install tcpdump and Wireshark
-      become: yes
-      package:
-        name:
-          - tcpdump
-          - wireshark
-        state: present
-
-    - name: Ensure tcpdump, binutils, and grep are installed
-      ansible.builtin.package:
-        name: "{{ item }}"
-        state: present
-      loop:
-        - tcpdump
-        - binutils
-        - grep
-      become: yes
-
-    - name: Extract potential executables using tcpdump
-      ansible.builtin.command: >
-        tshark -r /home/sempaynado/collected_pcap.pcap -T fields -e data |
-        grep -E -o '/[^ ]*(\\.exe|\\.dll|\\.bat|\\.ps1|\\.sh|\\.jar)' > extracted_executables.txt
-      register: extracted_files
-      changed_when: false
-      ignore_errors: true
-
-    - name: Save Extracted Executable
-      ansible.builtin.copy:
-        content: "{{ collected_pcap.stdout_lines | join('\n') }}"
-        dest: "/home/sempaynado/extracted_pcap.txt"
+    - name: Extract potential executables using tcpflow
+      command: "tcpflow -r /home/sempaynado/captures.pcap -o /home/sempaynado/HOA8.1/log"
+      args:
+        created: /home/sempaynado/Documents/collected.exe
