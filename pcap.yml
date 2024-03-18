@@ -1,0 +1,72 @@
+---
+- name: Extract Executable from PCAP using tcpdump
+  hosts: remote_servers
+  gather_facts: no
+  tasks:
+    - name: Install tcpdump and Wireshark
+      become: yes
+      package:
+        name:
+          - tcpdump
+          - wireshark
+        state: present
+
+    - name: Ensure tcpdump, binutils, and grep are installed
+      ansible.builtin.package:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - tcpdump
+        - binutils
+        - grep
+      become: yes
+
+    - name: Start and Manual PCAP capture
+      command: tcpdump -i enp0s8 -w tcpdump.pcap
+      async: 120
+      poll: 0
+
+    - name: Collect PCAP file
+      ansible.builtin.fetch:
+        src: "/home/sempaynado/tcpdump.pcap"
+        dest: "/home/sempaynado/collected_pcap.exe"
+        flat: yes
+        become: yes
+        become_user: root
+
+- name: LOCALHOST
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+
+    - name: Install tcpdump and Wireshark
+      become: yes
+      package:
+        name:
+          - tcpdump
+          - wireshark
+        state: present
+
+    - name: Ensure tcpdump, binutils, and grep are installed
+      ansible.builtin.package:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - tcpdump
+        - binutils
+        - grep
+      become: yes
+
+    - name: Extract potential executables using tcpdump
+      ansible.builtin.command: >
+        tshark -r /home/sempaynado/collected_pcap.pcap -T fields -e data |
+        grep -E -o '/[^ ]*(\\.exe|\\.dll|\\.bat|\\.ps1|\\.sh|\\.jar)' > extracted_executables.txt
+      register: extracted_files
+      changed_when: false
+      ignore_errors: true
+
+    - name: Save Extracted Executable
+      ansible.builtin.copy:
+        content: "{{ collected_pcap.stdout_lines | join('\n') }}"
+        dest: "/home/sempaynado/extracted_pcap.txt"
